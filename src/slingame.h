@@ -1,6 +1,36 @@
+// NOTE(slin): File structures/headers
+#pragma pack(push, 1)
 typedef struct {
-  float m[16];
-} matrix4;
+  s16 signature;
+  u32 bytes;
+  s16 reserved0;
+  s16 reserved1;
+  u32 offset;
+  u32 dibHeaderBytes;
+  u32 width;
+  u32 height;
+} bitmapheader;
+
+typedef struct {
+  u32 triangleCount;
+  u32 vertexCount;
+} sobjheader;
+
+typedef struct {
+  s8 chunkId[4];
+  u32 chunkSize;
+  s8 format[4];
+  u8 unused0[24];
+  u8 unused1[8];
+  s16 data;
+} wav;
+#pragma pack(pop)
+
+// NOTE(slin): Structs passed into update()
+typedef struct {
+  u32 samples;
+  s16 *memory;
+} gameaudio;
 
 typedef struct {
   void *memory;
@@ -15,41 +45,12 @@ typedef struct {
   b32 btnDown;
 } gameinput;
 
-#pragma pack(push, 1)
-typedef struct {
-  s16 signature;
-  u32 bytes;
-  s16 reserved0;
-  s16 reserved1;
-  u32 offset;
-  u32 dibHeaderBytes;
-  u32 width;
-  u32 height;
-} bitmapheader;
-#pragma pack(pop)
-
+// NOTE(slin): General structures
 typedef struct {
   file source;
   bitmapheader *header;
   u32 *data;
 } bitmap;
-
-typedef struct {
-  s8 chunkId[4];
-  u32 chunkSize;
-  s8 format[4];
-
-  u8 useless[24];
-
-  u8 useless2[8];
-
-  s16 data;
-} wav;
-
-typedef struct {
-  u32 samples;
-  s16 *memory;
-} audio;
 
 typedef struct {
   file source;
@@ -60,13 +61,6 @@ typedef struct {
   r32 *texture;
   r32 *normal;
 } sobj;
-
-#pragma pack(push, 1)
-typedef struct {
-  u32 triangleCount;
-  u32 vertexCount;
-} sobjheader;
-#pragma pack(pop)
 
 typedef struct {
   sobj model;

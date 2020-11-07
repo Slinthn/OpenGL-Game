@@ -1,6 +1,7 @@
 #pragma warning(push, 0)
 #include <stdint.h>
 #include <windows.h>
+#include <windowsx.h>
 #include <gl/gl.h>
 #include "gltext.h"
 #include <xinput.h>
