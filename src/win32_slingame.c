@@ -8,6 +8,7 @@ typedef struct {
 
 static win32_audio winaudio;
 static b32 running;
+static b32 mouseCaptured;
 
 file readFile(char *filename) {
   file result = {0};
@@ -168,32 +169,56 @@ void win32_writeAudioToBuffer(win32_audio audio, u32 cursor, u32 bytesToWrite, s
   audio.secondaryBuffer->lpVtbl->Unlock(audio.secondaryBuffer, ap0, as0, ap1, as1);
 }
 
-void keyboardToInput(gameinput *input, u32 key, b32 down) {
+void win32_keyboardToInput(gameinput *input, u32 key, b32 down) {
   switch (key) {
   case 'W':
   case VK_UP: {
-    input->lStickY = down ? 1.0f : 0;
+    input->lStickY += down ? 1.0f : -1.0f;
   } break;
 
   case 'A':
   case VK_LEFT: {
-    input->lStickX = down ? -1.0f : 0;
+    input->lStickX += down ? -1.0f : 1.0f;
   } break;
 
   case 'S':
   case VK_DOWN: {
-    input->lStickY = down ? -1.0f : 0;
+    input->lStickY += down ? -1.0f : 1.0f;
   } break;
 
   case 'D':
   case VK_RIGHT: {
-    input->lStickX = down ? 1.0f : 0;
+    input->lStickX += down ? 1.0f : -1.0f;
   } break;
 
   case ' ': {
     input->btnDown = down ? 1 : 0;
   } break;
+
+  case VK_ESCAPE: {
+    if (!mouseCaptured)
+      break;
+    
+    mouseCaptured = 0;
+    ShowCursor(1);
+    ClipCursor(0);
+  } break;
   }
+
+#define tmpConstrain(input) \
+  if (input > 1.0f) input = 1.0f; \
+  else if (input < -1.0f) input = -1.0f;
+
+  // NOTE(slin): If key is held but window is deactivated. No WM_KEYUP is sent in this case.
+  // is there a nicer way to do this? this seems shitty
+  tmpConstrain(input->lStickX);
+  tmpConstrain(input->lStickY);
+  tmpConstrain(input->rStickX);
+  tmpConstrain(input->rStickY);
+}
+
+void win32_mouseToInput(gameinput *input, u32 buttons) {
+  input->rShoulder = (buttons & MK_LBUTTON) != 0;
 }
 
 LRESULT win32_windowProc(HWND wnd, UINT msg, WPARAM wParam, LPARAM lParam) {
@@ -208,20 +233,34 @@ LRESULT win32_windowProc(HWND wnd, UINT msg, WPARAM wParam, LPARAM lParam) {
     viewportWidth = LOWORD(lParam);
     viewportHeight = HIWORD(lParam);
     glViewport(0, 0, viewportWidth, viewportHeight);
-  }; // NOTE(slin): on purpose no break
+  } break;
 
   case WM_MOUSEMOVE: {
-    RECT client, window;
-    GetWindowRect(wnd, &window);
-    GetClientRect(wnd, &client);
-
+    if (!mouseCaptured)
+      break;
+    
+    RECT client;
+    GetClientRect(wnd, &client);    
+        
     POINT point = {0};
     point.x = client.right / 2;
     point.y = client.bottom / 2;
     ClientToScreen(wnd, &point);
     
     SetCursorPos(point.x, point.y);
+  } break;
+
+  case WM_LBUTTONDOWN: {
+    if (mouseCaptured)
+      break;
+
+    mouseCaptured = 1;
+
+    RECT window;
+    GetWindowRect(wnd, &window);
+
     ClipCursor(&window);
+    ShowCursor(0);
   } break;
     
   case WM_ACTIVATEAPP: {
@@ -232,6 +271,10 @@ LRESULT win32_windowProc(HWND wnd, UINT msg, WPARAM wParam, LPARAM lParam) {
       winaudio.secondaryBuffer->lpVtbl->Play(winaudio.secondaryBuffer, 0, 0, DSBPLAY_LOOPING);
     else
       winaudio.secondaryBuffer->lpVtbl->Stop(winaudio.secondaryBuffer);
+  } break;
+
+  case WM_ACTIVATE: {
+    OutputDebugString("EAEDFNGSJINWRIAFN\n");
   } break;
     
   default: {
@@ -279,16 +322,27 @@ int WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmd, int show) {
     MSG msg;
     while (PeekMessage(&msg, wnd, 0, 0, PM_REMOVE)) {
       TranslateMessage(&msg);
+      DispatchMessage(&msg);
 
       switch (msg.message) {
-      case WM_KEYDOWN: {
-        keyboardToInput(&input, (u32)msg.wParam, 1);
-      } break;
+      case WM_KEYDOWN:
       case WM_KEYUP: {
-        keyboardToInput(&input, (u32)msg.wParam, 0);
-      } break;
+        b32 down = !(msg.lParam & (1 << 31));
+        b32 wasDown = (msg.lParam & (1 << 30)) != 0;
 
+        if (down != wasDown)
+          win32_keyboardToInput(&input, (u32)msg.wParam, down);
+      } break;
+        
+      case WM_LBUTTONDOWN:
+      case WM_LBUTTONUP: {
+        win32_mouseToInput(&input, (u32)msg.wParam);
+      } break;
+        
       case WM_MOUSEMOVE: {
+        if (!mouseCaptured)
+          break;
+        
         RECT window;
         GetClientRect(wnd, &window);
         s32 originX = window.right / 2;
@@ -300,17 +354,11 @@ int WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmd, int show) {
         r32 speed = 0.04f;
         input.rStickX += dx*speed;
         input.rStickY += dy*speed;
-
-        ShowCursor(0);
       } break;
       }
-
-      DispatchMessage(&msg);
     }
-
-    //input.rStickY = 0;
     
-    // NOTE(slin): Input cod
+    // NOTE(slin): Input code
     XINPUT_STATE state;
     XINPUT_GAMEPAD *gp;
     XInputGetState(0, &state);
@@ -322,12 +370,13 @@ int WinMain(HINSTANCE instance, HINSTANCE prevInstance, LPSTR cmd, int show) {
     input.rStickX = win32_processStick(gp->sThumbRX);
     input.rStickY = win32_processStick(gp->sThumbRY);
     input.btnDown = gp->wButtons & XINPUT_GAMEPAD_A;
+    input.rShoulder = gp->wButtons & XINPUT_GAMEPAD_RIGHT_SHOULDER;
 #endif
     
     // NOTE(slin): Audio code
     u32 toWrite;
-    DWORD playCursor, writeCursor;
-    winaudio.secondaryBuffer->lpVtbl->GetCurrentPosition(winaudio.secondaryBuffer, &playCursor, &writeCursor);
+    DWORD writeCursor;
+    winaudio.secondaryBuffer->lpVtbl->GetCurrentPosition(winaudio.secondaryBuffer, 0, &writeCursor);
       
     u32 delay = 5000; // TODO(slin): Should this be increased? If I set it to 0 I think it's actually
     // writing behind the playcursor.

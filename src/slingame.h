@@ -43,6 +43,7 @@ typedef struct {
   r32 rStickX;
   r32 rStickY;
   b32 btnDown;
+  b32 rShoulder;
 } gameinput;
 
 // NOTE(slin): General structures

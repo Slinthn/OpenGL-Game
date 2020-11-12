@@ -35,19 +35,26 @@ matrix4 transformMatrix(r32 tx, r32 ty, r32 tz, r32 rx, r32 ry, r32 rz, r32 sx, 
   result.m[10] = 1;
   result.m[15] = 1;
 
-  rx *= PI_32 / 180.0f;
-  ry *= PI_32 / 180.0f;
-  rz *= PI_32 / 180.0f;
+  rx = radians(rx);
+  ry = radians(ry);
+  rz = radians(rz);
+
+  r32 srx = sinf(rx);
+  r32 crx = cosf(rx);
+  r32 sry = sinf(ry);
+  r32 cry = cosf(ry);
+  r32 srz = sinf(rz);
+  r32 crz = cosf(rz);
   
-  result.m[0] = cosf(rz)*cosf(ry);
-  result.m[4] = cosf(rz)*sinf(ry)*sinf(rx) - sinf(rz)*cosf(rx);
-  result.m[8] = cosf(rz)*sinf(ry)*cosf(rx) + sinf(rz)*sinf(rx);
-  result.m[1] = sinf(rz)*cosf(ry);
-  result.m[5] = sinf(rz)*sinf(ry)*sinf(rx) + cosf(rz)*cosf(rx);
-  result.m[9] = sinf(rz)*sinf(ry)*cosf(rx) - cosf(rz)*sinf(rx);
-  result.m[2] = -sinf(ry);
-  result.m[6] = cosf(ry)*sinf(rx);
-  result.m[10] = cosf(ry)*cosf(rx);
+  result.m[0] = crz*cry;
+  result.m[4] = crz*sry*srx - srz*crx;
+  result.m[8] = crz*sry*crx + srz*srx;
+  result.m[1] = srz*cry;
+  result.m[5] = srz*sry*srx + crz*crx;
+  result.m[9] = srz*sry*crx - crz*srx;
+  result.m[2] = -sry;
+  result.m[6] = cry*srx;
+  result.m[10] = cry*crx;
 
   result.m[12] = tx;
   result.m[13] = ty;
